@@ -80,7 +80,7 @@ async def start_cmd(message: types.Message):
 # --- ЗВІТ ---
 @dp.message(F.text == "📊 Зробити звіт")
 async def manual_report(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         await message.reply("⛔ Тільки адмін.")
         return
     if not orders_db:

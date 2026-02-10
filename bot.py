@@ -4,6 +4,7 @@ import json
 import urllib.parse
 import os
 import requests
+import random  # <--- номер заказа рандом 
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -124,7 +125,14 @@ async def web_app_data_handler(message: types.Message):
         # Координати з сайту
         client_lat = data.get('lat')
         client_lon = data.get('lon')
-        
+
+        # --- початок рандом заказ номер ---
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        rand_letter = random.choice(letters)
+        rand_num = random.randint(10, 99)
+        order_id = f"#{rand_letter}{rand_num}"
+        # ----кінець рандом ----
+
         if pay_type == 'cash':
             amount = float(data['sum'])
             money_str = f"💵 **Готівка:** {amount:.2f} zł"
@@ -133,6 +141,8 @@ async def web_app_data_handler(message: types.Message):
             money_str = f"💳 **Оплата:** ОНЛАЙН (Сплачено)"
 
         courier_text = (
+                # рандом :
+            f"🆔 **{order_id}**\n"<--- Додав рандом
             f"📦 **НОВЕ ЗАМОВЛЕННЯ**\n"
             f"➖➖➖➖➖➖➖➖➖➖\n"
             f"**Статус:** 🟢 Активний\n\n"

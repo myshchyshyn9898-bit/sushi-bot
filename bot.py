@@ -14,7 +14,7 @@ from staticmap import StaticMap, Line, CircleMarker
 
 # --- НАЛАШТУВАННЯ ---
 API_TOKEN = '8342216853:AAF-_LtBQejUR1Wx9FS9mA0dmWPZuiEei58'
-ADMIN_ID = 6889016268
+ADMIN_IDS = [6889016268, 8489017722]
 COURIER_CHAT_ID = -1003843457222
 WEB_APP_URL = "https://myshchyshyn9898-bit.github.io/delivery-bot/" 
 

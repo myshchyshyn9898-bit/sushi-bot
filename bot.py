@@ -4,7 +4,7 @@ import json
 import urllib.parse
 import os
 import requests
-import random
+import random  # <--- номер заказа рандом 
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -44,6 +44,7 @@ def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
             return None
             
         coordinates = route_data['routes'][0]['geometry']['coordinates']
+        # Конвертуємо в формат для staticmap (lon, lat) -> вже так і є
         
         # 2. Малюємо карту
         m = StaticMap(600, 300, 10) # Розмір картинки
@@ -109,7 +110,7 @@ async def manual_report(message: types.Message):
     if message.chat.id != COURIER_CHAT_ID:
         await message.answer("✅ Звіт відправлено.")
 
-# --- ОБРОБКА ДАНИХ (ТІЛЬКИ ТУТ ВНІС ЗМІНИ ДЛЯ UBER) ---
+# --- ОБРОБКА ДАНИХ ---
 @dp.message(F.content_type == types.ContentType.WEB_APP_DATA)
 async def web_app_data_handler(message: types.Message):
     try:
@@ -120,18 +121,16 @@ async def web_app_data_handler(message: types.Message):
         pay_type = data['payType']
         comment = data.get('comment', '')
         
-        # --- ЛОГІКА ТЕЛЕФОНУ ---
-        # Чистимо номер від пробілів
+        # --- ЛОГІКА ТЕЛЕФОНУ (Uber Call) ---
         raw_phone = str(data.get('phone', '')).replace(' ', '').replace('-', '').replace('+', '')
         
         if len(raw_phone) == 8 and raw_phone.isdigit():
-            # Якщо 8 цифр -> Робимо клікабельне посилання в тексті (Markdown)
-            # tel:номер,,код# (дві коми = пауза)
-            phone_line = f"[🚕 **Uber Call (Натисни)**](tel:223076593,,{raw_phone}#)"
+            # Використовуємо %23 замість #, щоб Markdown не ламався
+            # Посилання буде: tel:223076593,,КОД#
+            phone_display = f"[🚕 **Uber Call (Натисни)**](tel:223076593,,{raw_phone}%23)"
         else:
-            # Звичайний номер
-            phone_line = f"📞 **Тел:** {data['phone']}"
-        # -----------------------
+            phone_display = f"📞 **Тел:** {data['phone']}"
+        # -----------------------------------
 
         # Координати з сайту
         client_lat = data.get('lat')
@@ -157,7 +156,7 @@ async def web_app_data_handler(message: types.Message):
             f"**Статус:** 🟢 Активний\n\n"
             f"📍 **Адреса:** {address}\n"
             f"🏢 **Деталі:** {details}\n"
-            f"{phone_line}\n"  # <--- ТУТ ВСТАВЛЕНО ЗМІННУ
+            f"{phone_display}\n" # <--- ТУТ ЗМІННА
             f"{money_str}\n"
             f"➖➖➖➖➖➖➖➖➖➖"
         )
@@ -176,7 +175,7 @@ async def web_app_data_handler(message: types.Message):
         # --- СПРОБА ВІДПРАВИТИ ФОТО З ЛІНІЄЮ ---
         photo_sent = False
         if client_lat and client_lon:
-            # Генеруємо фото (все як було у тебе)
+            # Генеруємо фото
             map_file = generate_route_image(float(client_lat), float(client_lon))
             if map_file:
                 # Відправляємо фото + текст

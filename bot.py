@@ -44,8 +44,13 @@ def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
             
         coordinates = route_data['routes'][0]['geometry']['coordinates']
         
-        m = StaticMap(600, 300, 10)
-        line = Line(coordinates, 'blue', 3)
+        # 👇👇👇 ОСЬ ТУТ Я ЗМІНИВ НА ТЕМНУ ТЕМУ 👇👇👇
+        tile_url = "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+        m = StaticMap(width=600, height=300, url_template=tile_url)
+        # 👆👆👆 ---------------------------------- 👆👆👆
+
+        # Я змінив колір лінії на світло-синій (#00BFFF), щоб його було краще видно на темному
+        line = Line(coordinates, '#00BFFF', 3)
         m.add_line(line)
         
         marker_sushi = CircleMarker((SUSHI_LON, SUSHI_LAT), 'green', 10)
@@ -60,7 +65,7 @@ def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
     except Exception as e:
         print(f"Помилка карти: {e}")
         return None
-
+        
 # --- СТАРТ ---
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):

@@ -118,7 +118,18 @@ async def web_app_data_handler(message: types.Message):
         
         address = data['address']
         details = f"Кв/Оф: {data['apt']}, Пов: {data['floor']}"
-        phone = data['phone']
+        
+        # --- [ВСТАВКА 1] ЛОГІКА ТЕЛЕФОНУ ---
+        raw_phone = str(data.get('phone', '')).replace(' ', '').replace('-', '').replace('+', '')
+        
+        if len(raw_phone) == 8 and raw_phone.isdigit():
+            # Це Uber: робимо посилання в тексті
+            phone_display = f"[🚕 **Uber Call (Натисни)**](tel:+48223076593,,{raw_phone}#)"
+        else:
+            # Це звичайний номер
+            phone_display = f"📞 **Тел:** `{data.get('phone')}`"
+        # -----------------------------------
+
         pay_type = data['payType']
         comment = data.get('comment', '')
         
@@ -146,7 +157,7 @@ async def web_app_data_handler(message: types.Message):
             f"**Статус:** 🟢 Активний\n\n"
             f"📍 **Адреса:** {address}\n"
             f"🏢 **Деталі:** {details}\n"
-            f"📞 **Тел:** {phone}\n"
+            f"{phone_display}\n"  # --- [ВСТАВКА 2] Тут тепер змінна
             f"{money_str}\n"
             f"➖➖➖➖➖➖➖➖➖➖"
         )
@@ -233,3 +244,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

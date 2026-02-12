@@ -19,9 +19,9 @@ ADMIN_IDS = [6889016268, 8489017722]
 COURIER_CHAT_ID = -1003843457222
 WEB_APP_URL = "https://myshchyshyn9898-bit.github.io/delivery-bot/" 
 
-# Координати Hero Sushi (Zamenhofa)
-SUSHI_LAT = 50.0415
-SUSHI_LON = 22.0140
+# Координати Hero Sushi
+SUSHI_LAT = 50.0368740
+SUSHI_LON = 22.0069490
 
 logging.basicConfig(level=logging.INFO)
 

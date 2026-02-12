@@ -1,4 +1,4 @@
-import asyncio
+mport asyncio
 import logging
 import json
 import urllib.parse
@@ -19,9 +19,9 @@ ADMIN_IDS = [6889016268, 8489017722]
 COURIER_CHAT_ID = -1003843457222
 WEB_APP_URL = "https://myshchyshyn9898-bit.github.io/delivery-bot/" 
 
-# Координати Hero Sushi
-SUSHI_LAT = 50.0368740
-SUSHI_LON = 22.0069490
+# Координати Hero Sushi (Zamenhofa)
+SUSHI_LAT = 50.0415
+SUSHI_LON = 22.0140
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,7 +30,7 @@ dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="Europe/Warsaw")
 orders_db = []
 
-# --- ГЕНЕРАТОР КАРТИ (STADIA ALIDADE DARK) ---
+# --- ГЕНЕРАТОР КАРТИ ---
 def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
     try:
         url = f"http://router.project-osrm.org/route/v1/driving/{SUSHI_LON},{SUSHI_LAT};{end_lon},{end_lat}?overview=full&geometries=geojson"
@@ -44,19 +44,14 @@ def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
             
         coordinates = route_data['routes'][0]['geometry']['coordinates']
         
-        # 👇👇👇 STADIA ALIDADE SMOOTH DARK 👇👇👇
-        tile_url = "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png"
-        m = StaticMap(width=600, height=300, url_template=tile_url)
-        # 👆👆👆 --------------------------- 👆👆👆
-
-        # Для цієї карти я поставив неоновий блакитний колір (#00FFFF), він там світиться
-        line = Line(coordinates, '#00FFFF', 3)
+        m = StaticMap(600, 300, 10)
+        line = Line(coordinates, 'blue', 3)
         m.add_line(line)
         
-        marker_sushi = CircleMarker((SUSHI_LON, SUSHI_LAT), '#00FF00', 10)
+        marker_sushi = CircleMarker((SUSHI_LON, SUSHI_LAT), 'green', 10)
         m.add_marker(marker_sushi)
         
-        marker_client = CircleMarker((end_lon, end_lat), '#FF0000', 10)
+        marker_client = CircleMarker((end_lon, end_lat), 'red', 10)
         m.add_marker(marker_client)
         
         image = m.render()

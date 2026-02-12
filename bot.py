@@ -118,22 +118,7 @@ async def web_app_data_handler(message: types.Message):
         
         address = data['address']
         details = f"Кв/Оф: {data['apt']}, Пов: {data['floor']}"
-        
-        # --- [ТУТ ВСТАВИВ] ПЕРЕВІРКА НА UBER ---
-        raw_phone = str(data.get('phone', '')).replace(' ', '').replace('-', '').replace('+', '')
-        uber_btn = None
-        
-        # Якщо 8 цифр - це Uber
-        if len(raw_phone) == 8 and raw_phone.isdigit():
-            phone_display = "🚕 **Тел:** Uber Call" 
-            # Формуємо лінк (паузи ,, і решітка #)
-            uber_url = f"tel:223076593,,{raw_phone}#"
-            uber_btn = InlineKeyboardButton(text="📞 Дзвонити Uber", url=uber_url)
-        else:
-            # Звичайний номер
-            phone_display = f"📞 **Тел:** `{data.get('phone')}`"
-        # ---------------------------------------
-
+        phone = data['phone']
         pay_type = data['payType']
         comment = data.get('comment', '')
         
@@ -161,7 +146,7 @@ async def web_app_data_handler(message: types.Message):
             f"**Статус:** 🟢 Активний\n\n"
             f"📍 **Адреса:** {address}\n"
             f"🏢 **Деталі:** {details}\n"
-            f"{phone_display}\n" # <--- Вставив сюди змінну
+            f"📞 **Тел:** {phone}\n"
             f"{money_str}\n"
             f"➖➖➖➖➖➖➖➖➖➖"
         )
@@ -172,17 +157,10 @@ async def web_app_data_handler(message: types.Message):
         maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
         
         callback_data = f"close_{pay_type}_{amount}"
-        
-        # --- [ТУТ ВСТАВИВ] ЗБІР КНОПОК ---
-        buttons = []
-        if uber_btn: # Додаємо кнопку тільки якщо це Uber
-            buttons.append([uber_btn])
-        
-        buttons.append([InlineKeyboardButton(text="🗺 Маршрут", url=maps_url)])
-        buttons.append([InlineKeyboardButton(text="✅ Закрити замовлення", callback_data=callback_data)])
-        
-        kb_courier = InlineKeyboardMarkup(inline_keyboard=buttons)
-        # ---------------------------------
+        kb_courier = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗺 Маршрут", url=maps_url)],
+            [InlineKeyboardButton(text="✅ Закрити замовлення", callback_data=callback_data)]
+        ])
 
         # --- СПРОБА ВІДПРАВИТИ ФОТО З ЛІНІЄЮ ---
         photo_sent = False

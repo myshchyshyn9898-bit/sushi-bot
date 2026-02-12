@@ -33,7 +33,6 @@ orders_db = []
 # --- ГЕНЕРАТОР КАРТИ ---
 def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
     try:
-        # 1. Отримуємо геометрію маршруту (лінію) через OSRM (безкоштовно)
         url = f"http://router.project-osrm.org/route/v1/driving/{SUSHI_LON},{SUSHI_LAT};{end_lon},{end_lat}?overview=full&geometries=geojson"
         r = requests.get(url, timeout=5)
         if r.status_code != 200:
@@ -44,24 +43,17 @@ def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
             return None
             
         coordinates = route_data['routes'][0]['geometry']['coordinates']
-        # Конвертуємо в формат для staticmap (lon, lat) -> вже так і є
         
-        # 2. Малюємо карту
-        m = StaticMap(600, 300, 10) # Розмір картинки
-        
-        # Лінія маршруту (Синя)
+        m = StaticMap(600, 300, 10)
         line = Line(coordinates, 'blue', 3)
         m.add_line(line)
         
-        # Точка Суші (Зелена)
         marker_sushi = CircleMarker((SUSHI_LON, SUSHI_LAT), 'green', 10)
         m.add_marker(marker_sushi)
         
-        # Точка Клієнта (Червона)
         marker_client = CircleMarker((end_lon, end_lat), 'red', 10)
         m.add_marker(marker_client)
         
-        # Зберігаємо
         image = m.render()
         image.save(filename)
         return filename
@@ -122,16 +114,13 @@ async def web_app_data_handler(message: types.Message):
         pay_type = data['payType']
         comment = data.get('comment', '')
         
-        # Координати з сайту
         client_lat = data.get('lat')
         client_lon = data.get('lon')
 
-        # --- початок рандом заказ номер ---
         letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         rand_letter = random.choice(letters)
         rand_num = random.randint(10, 99)
         order_id = f"#{rand_letter}{rand_num}"
-        # ----кінець рандом ----
 
         if pay_type == 'cash':
             amount = float(data['sum'])
@@ -155,20 +144,27 @@ async def web_app_data_handler(message: types.Message):
 
         encoded_addr = urllib.parse.quote(address)
         maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
-        
         callback_data = f"close_{pay_type}_{amount}"
+
+        # --- КНОПКА ДЗВІНКА ---
+        phone_clean = phone.strip()
+        call_url = f"{WEB_APP_URL}call.html?code={phone_clean}"
+
+        if phone_clean.isdigit() and len(phone_clean) == 8:
+            call_button_text = "🚖 Uber Call"
+        else:
+            call_button_text = "📞 Подзвонити"
+
         kb_courier = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🗺 Маршрут", url=maps_url)],
+            [InlineKeyboardButton(text=call_button_text, url=call_url)],
             [InlineKeyboardButton(text="✅ Закрити замовлення", callback_data=callback_data)]
         ])
 
-        # --- СПРОБА ВІДПРАВИТИ ФОТО З ЛІНІЄЮ ---
         photo_sent = False
         if client_lat and client_lon:
-            # Генеруємо фото
             map_file = generate_route_image(float(client_lat), float(client_lon))
             if map_file:
-                # Відправляємо фото + текст
                 await bot.send_photo(
                     COURIER_CHAT_ID, 
                     photo=FSInputFile(map_file), 
@@ -177,11 +173,9 @@ async def web_app_data_handler(message: types.Message):
                     parse_mode="Markdown"
                 )
                 photo_sent = True
-                # Видаляємо тимчасовий файл
                 try: os.remove(map_file)
                 except: pass
 
-        # Якщо фото не вдалося зробити (або немає координат), шлемо просто текст
         if not photo_sent:
             await bot.send_message(COURIER_CHAT_ID, courier_text, reply_markup=kb_courier, parse_mode="Markdown")
 
@@ -202,14 +196,11 @@ async def close_order(callback: types.CallbackQuery):
 
         time_now = datetime.now().strftime("%H:%M")
         
-        # Для фото і тексту методи редагування різні
         if callback.message.photo:
-            # Якщо це було фото - редагуємо підпис (caption)
             original_text = callback.message.caption
             new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
             await callback.message.edit_caption(caption=new_text, reply_markup=None)
         else:
-            # Якщо це був текст
             original_text = callback.message.text
             new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
             await callback.message.edit_text(new_text, reply_markup=None)

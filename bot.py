@@ -30,7 +30,7 @@ dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="Europe/Warsaw")
 orders_db = []
 
-# --- ГЕНЕРАТОР КАРТИ ---
+# --- ГЕНЕРАТОР КАРТИ (СВІТЛА ТЕМА) ---
 def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
     try:
         url = f"http://router.project-osrm.org/route/v1/driving/{SUSHI_LON},{SUSHI_LAT};{end_lon},{end_lat}?overview=full&geometries=geojson"
@@ -44,13 +44,13 @@ def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
             
         coordinates = route_data['routes'][0]['geometry']['coordinates']
         
-        # 👇👇👇 ОСЬ ТУТ Я ЗМІНИВ НА ТЕМНУ ТЕМУ 👇👇👇
-        tile_url = "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+        # 👇👇👇 БІЛА КАРТА (Positron) 👇👇👇
+        tile_url = "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
         m = StaticMap(width=600, height=300, url_template=tile_url)
-        # 👆👆👆 ---------------------------------- 👆👆👆
+        # 👆👆👆 --------------------------- 👆👆👆
 
-        # Я змінив колір лінії на світло-синій (#00BFFF), щоб його було краще видно на темному
-        line = Line(coordinates, '#00BFFF', 3)
+        # Для білої карти лінію робимо синьою (стандарт), щоб був гарний контраст
+        line = Line(coordinates, 'blue', 3)
         m.add_line(line)
         
         marker_sushi = CircleMarker((SUSHI_LON, SUSHI_LAT), 'green', 10)

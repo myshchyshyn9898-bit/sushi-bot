@@ -141,15 +141,13 @@ async def web_app_data_handler(message: types.Message):
         encoded_addr = urllib.parse.quote(address)
         maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
 
-        # --- ЛОГІКА UBER ---
+        # --- ДЗВІНОК ЧЕРЕЗ call.html ---
         phone_clean = phone.strip()
-        is_uber_code = phone_clean.isdigit() and len(phone_clean) == 8
+        call_url = f"{WEB_APP_URL}call.html?code={phone_clean}"
 
-        if is_uber_code:
-            call_url = f"tel:223076593;;{phone_clean}%23"
+        if phone_clean.isdigit() and len(phone_clean) == 8:
             call_button_text = "🚖 Uber Call"
         else:
-            call_url = f"tel:{phone_clean}"
             call_button_text = "📞 Подзвонити"
 
         callback_data = f"close_{pay_type}_{amount}"
@@ -160,30 +158,12 @@ async def web_app_data_handler(message: types.Message):
             [InlineKeyboardButton(text="✅ Закрити замовлення", callback_data=callback_data)]
         ])
 
-        photo_sent = False
-        if client_lat and client_lon:
-            map_file = generate_route_image(float(client_lat), float(client_lon))
-            if map_file:
-                await bot.send_photo(
-                    COURIER_CHAT_ID,
-                    photo=FSInputFile(map_file),
-                    caption=courier_text,
-                    reply_markup=kb_courier,
-                    parse_mode="Markdown"
-                )
-                photo_sent = True
-                try:
-                    os.remove(map_file)
-                except:
-                    pass
-
-        if not photo_sent:
-            await bot.send_message(
-                COURIER_CHAT_ID,
-                courier_text,
-                reply_markup=kb_courier,
-                parse_mode="Markdown"
-            )
+        await bot.send_message(
+            COURIER_CHAT_ID,
+            courier_text,
+            reply_markup=kb_courier,
+            parse_mode="Markdown"
+        )
 
         await message.answer("✅ Замовлення створено!")
 
@@ -201,14 +181,9 @@ async def close_order(callback: types.CallbackQuery):
 
     time_now = datetime.now().strftime("%H:%M")
 
-    if callback.message.photo:
-        original_text = callback.message.caption
-        new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
-        await callback.message.edit_caption(caption=new_text, reply_markup=None)
-    else:
-        original_text = callback.message.text
-        new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
-        await callback.message.edit_text(new_text, reply_markup=None)
+    original_text = callback.message.text
+    new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
+    await callback.message.edit_text(new_text, reply_markup=None)
 
     orders_db.append({"courier": courier, "type": p_type, "amount": amount})
     await callback.answer(f"Прийнято! {amount} zł.")

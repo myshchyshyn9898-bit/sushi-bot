@@ -4,13 +4,12 @@ import json
 import urllib.parse
 import os
 import requests
-import random  # <--- номер заказа рандом 
+import random 
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, FSInputFile
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-# Для малювання карти (потрібно pip install staticmap)
 from staticmap import StaticMap, Line, CircleMarker
 
 # --- НАЛАШТУВАННЯ ---
@@ -33,35 +32,21 @@ orders_db = []
 # --- ГЕНЕРАТОР КАРТИ ---
 def generate_route_image(end_lat, end_lon, filename="map_preview.png"):
     try:
-        # 1. Отримуємо геометрію маршруту (лінію) через OSRM (безкоштовно)
         url = f"http://router.project-osrm.org/route/v1/driving/{SUSHI_LON},{SUSHI_LAT};{end_lon},{end_lat}?overview=full&geometries=geojson"
         r = requests.get(url, timeout=5)
-        if r.status_code != 200:
-            return None
+        if r.status_code != 200: return None
         
         route_data = r.json()
-        if not route_data.get('routes'):
-            return None
+        if not route_data.get('routes'): return None
             
         coordinates = route_data['routes'][0]['geometry']['coordinates']
-        # Конвертуємо в формат для staticmap (lon, lat) -> вже так і є
         
-        # 2. Малюємо карту
-        m = StaticMap(600, 300, 10) # Розмір картинки
-        
-        # Лінія маршруту (Синя)
+        m = StaticMap(600, 300, 10) 
         line = Line(coordinates, 'blue', 3)
         m.add_line(line)
+        m.add_marker(CircleMarker((SUSHI_LON, SUSHI_LAT), 'green', 10))
+        m.add_marker(CircleMarker((end_lon, end_lat), 'red', 10))
         
-        # Точка Суші (Зелена)
-        marker_sushi = CircleMarker((SUSHI_LON, SUSHI_LAT), 'green', 10)
-        m.add_marker(marker_sushi)
-        
-        # Точка Клієнта (Червона)
-        marker_client = CircleMarker((end_lon, end_lat), 'red', 10)
-        m.add_marker(marker_client)
-        
-        # Зберігаємо
         image = m.render()
         image.save(filename)
         return filename
@@ -101,102 +86,99 @@ async def manual_report(message: types.Message):
             stats[name]["online"] += 1
 
     time_now = datetime.now().strftime("%H:%M")
-    report = f"📊 **ЗВІТ (на {time_now})**\n➖➖➖➖➖➖➖➖➖➖\n\n"
+    # Тут використовуємо <b> замість ** бо parse_mode буде HTML
+    report = f"📊 <b>ЗВІТ (на {time_now})</b>\n➖➖➖➖➖➖➖➖➖➖\n\n"
     for name, d in stats.items():
-        report += f"👤 **{name}**: {d['total']} зам. | {d['cash']:.2f} zł\n"
-    report += f"➖➖➖➖➖➖➖➖➖➖\n💰 **ВСЯ КАСА:** {total_cash:.2f} zł"
+        report += f"👤 <b>{name}</b>: {d['total']} зам. | {d['cash']:.2f} zł\n"
+    report += f"➖➖➖➖➖➖➖➖➖➖\n💰 <b>ВСЯ КАСА:</b> {total_cash:.2f} zł"
     
-    await bot.send_message(COURIER_CHAT_ID, report, parse_mode="Markdown")
+    await bot.send_message(COURIER_CHAT_ID, report, parse_mode="HTML")
     if message.chat.id != COURIER_CHAT_ID:
         await message.answer("✅ Звіт відправлено.")
 
-# --- ОБРОБКА ДАНИХ ---
+# --- ОБРОБКА ДАНИХ (ТУТ ЗМІНИ) ---
 @dp.message(F.content_type == types.ContentType.WEB_APP_DATA)
 async def web_app_data_handler(message: types.Message):
     try:
         data = json.loads(message.web_app_data.data)
         
-        address = data['address']
-        details = f"Кв/Оф: {data['apt']}, Пов: {data['floor']}"
-        
-        # --- [ВСТАВКА 1] ЛОГІКА ТЕЛЕФОНУ ---
-        raw_phone = str(data.get('phone', '')).replace(' ', '').replace('-', '').replace('+', '')
-        
-        if len(raw_phone) == 8 and raw_phone.isdigit():
-            # Це Uber: робимо посилання в тексті
-            phone_display = f"[🚕 **Uber Call (Натисни)**](tel:+48223076593,,{raw_phone}#)"
-        else:
-            # Це звичайний номер
-            phone_display = f"📞 **Тел:** `{data.get('phone')}`"
-        # -----------------------------------
-
-        pay_type = data['payType']
-        comment = data.get('comment', '')
-        
-        # Координати з сайту
-        client_lat = data.get('lat')
-        client_lon = data.get('lon')
-
-        # --- початок рандом заказ номер ---
+        # 1. Генерація ID
         letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         rand_letter = random.choice(letters)
         rand_num = random.randint(10, 99)
         order_id = f"#{rand_letter}{rand_num}"
-        # ----кінець рандом ----
 
+        # 2. Отримуємо дані
+        address = data.get('address', 'Не вказано')
+        details = f"Кв/Оф: {data.get('apt', '-')}, Пов: {data.get('floor', '-')}"
+        pay_type = data.get('payType', 'cash')
+        comment = data.get('comment', '')
+        
+        # --- ЛОГІКА UBER (З ОДНОЮ КОМОЮ) ---
+        raw_phone = str(data.get('phone', '')).replace(' ', '').replace('-', '').replace('+', '')
+        
+        if len(raw_phone) == 8 and raw_phone.isdigit():
+            # Одна кома = коротка пауза
+            phone_display = f'🚕 <a href="tel:+48223076593,{raw_phone}#"><b>Uber Call (Натисни)</b></a>'
+        else:
+            phone_display = f"📞 <b>Тел:</b> <code>{data.get('phone')}</code>"
+        # -----------------------------------
+
+        # 3. Оплата
         if pay_type == 'cash':
-            amount = float(data['sum'])
-            money_str = f"💵 **Готівка:** {amount:.2f} zł"
+            amount = float(data.get('sum', 0))
+            money_str = f"💵 <b>Готівка:</b> {amount:.2f} zł"
         else:
             amount = 0
-            money_str = f"💳 **Оплата:** ОНЛАЙН (Сплачено)"
+            money_str = f"💳 <b>Оплата:</b> ОНЛАЙН (Сплачено)"
 
+        # 4. Текст повідомлення (Замінив ** на <b> для сумісності)
         courier_text = (
-            f"📦 **НОВЕ ЗАМОВЛЕННЯ {order_id}**\n"
+            f"📦 <b>НОВЕ ЗАМОВЛЕННЯ {order_id}</b>\n"
             f"➖➖➖➖➖➖➖➖➖➖\n"
-            f"**Статус:** 🟢 Активний\n\n"
-            f"📍 **Адреса:** {address}\n"
-            f"🏢 **Деталі:** {details}\n"
-            f"{phone_display}\n"  # --- [ВСТАВКА 2] Тут тепер змінна
+            f"<b>Статус:</b> 🟢 Активний\n\n"
+            f"📍 <b>Адреса:</b> {address}\n"
+            f"🏢 <b>Деталі:</b> {details}\n"
+            f"{phone_display}\n" 
             f"{money_str}\n"
             f"➖➖➖➖➖➖➖➖➖➖"
         )
         if comment:
-            courier_text += f"\n🗣 **Коментар:** {comment}"
+            courier_text += f"\n🗣 <b>Коментар:</b> {comment}"
 
+        # 5. Кнопки
         encoded_addr = urllib.parse.quote(address)
         maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
-        
         callback_data = f"close_{pay_type}_{amount}"
+
         kb_courier = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🗺 Маршрут", url=maps_url)],
             [InlineKeyboardButton(text="✅ Закрити замовлення", callback_data=callback_data)]
         ])
 
-        # --- СПРОБА ВІДПРАВИТИ ФОТО З ЛІНІЄЮ ---
+        # 6. Відправка (parse_mode="HTML" щоб працювало посилання)
+        client_lat = data.get('lat')
+        client_lon = data.get('lon')
         photo_sent = False
+
         if client_lat and client_lon:
-            # Генеруємо фото
-            map_file = generate_route_image(float(client_lat), float(client_lon))
+            map_file = generate_route_image(float(client_lat), float(client_lon), order_id)
             if map_file:
-                # Відправляємо фото + текст
                 await bot.send_photo(
                     COURIER_CHAT_ID, 
                     photo=FSInputFile(map_file), 
                     caption=courier_text, 
                     reply_markup=kb_courier, 
-                    parse_mode="Markdown"
+                    parse_mode="HTML"  # <--- ТУТ ВАЖЛИВО
                 )
                 photo_sent = True
-                # Видаляємо тимчасовий файл
                 try: os.remove(map_file)
                 except: pass
 
-        # Якщо фото не вдалося зробити (або немає координат), шлемо просто текст
         if not photo_sent:
-            await bot.send_message(COURIER_CHAT_ID, courier_text, reply_markup=kb_courier, parse_mode="Markdown")
+            await bot.send_message(COURIER_CHAT_ID, courier_text, reply_markup=kb_courier, parse_mode="HTML") # <--- ТУТ ВАЖЛИВО
 
-        await message.answer(f"✅ Замовлення створено!")
+        await message.answer(f"✅ Замовлення {order_id} створено!")
         
     except Exception as e:
         print(f"❌ ПОМИЛКА: {e}")
@@ -212,18 +194,17 @@ async def close_order(callback: types.CallbackQuery):
         courier = callback.from_user.first_name
 
         time_now = datetime.now().strftime("%H:%M")
+        status_line = f"🔴 Закрито ({time_now}, {courier})"
         
-        # Для фото і тексту методи редагування різні
+        # Тут також треба HTML, бо повідомлення було відправлене як HTML
         if callback.message.photo:
-            # Якщо це було фото - редагуємо підпис (caption)
             original_text = callback.message.caption
-            new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
-            await callback.message.edit_caption(caption=new_text, reply_markup=None)
+            new_text = original_text.replace("🟢 Активний", status_line)
+            await callback.message.edit_caption(caption=new_text, reply_markup=None, parse_mode="HTML")
         else:
-            # Якщо це був текст
             original_text = callback.message.text
-            new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
-            await callback.message.edit_text(new_text, reply_markup=None)
+            new_text = original_text.replace("🟢 Активний", status_line)
+            await callback.message.edit_text(new_text, reply_markup=None, parse_mode="HTML")
 
         orders_db.append({"courier": courier, "type": p_type, "amount": amount})
         await callback.answer(f"Прийнято! {amount} zł.")
@@ -238,10 +219,9 @@ scheduler.add_job(daily_reset, "cron", hour=0, minute=0)
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    print("🤖 Бот готовий! (Карта з лінією)")
+    print("🤖 Бот готовий!")
     scheduler.start()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-

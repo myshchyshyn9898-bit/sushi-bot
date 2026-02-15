@@ -4,17 +4,17 @@ import json
 import urllib.parse
 import os
 import requests
-import random  # <--- номер заказа рандом 
+import random
 from datetime import datetime
+from zoneinfo import ZoneInfo # Правильний час
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, FSInputFile
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-# Для малювання карти (потрібно pip install staticmap)
 from staticmap import StaticMap, Line, CircleMarker
 
 # --- НАЛАШТУВАННЯ ---
-API_TOKEN = '8342216853:AAF-_LtBQejUR1Wx9FS9mA0dmWPZuiEei58'
+API_TOKEN = '8342216853:AAF-_LtBQejUR1Wx9FS9mA0dmWPZuiEei58' # <-- Встав новий токен сюди!
 ADMIN_IDS = [6889016268, 8489017722]
 COURIER_CHAT_ID = -1003843457222
 WEB_APP_URL = "https://myshchyshyn9898-bit.github.io/delivery-bot/" 
@@ -82,21 +82,30 @@ async def manual_report(message: types.Message):
 
     stats = {}
     total_cash = 0
+    total_terminal = 0 # Лічильник для терміналу
+
     for o in orders_db:
         name = o['courier']
-        if name not in stats: stats[name] = {"cash": 0, "online": 0, "total": 0}
+        if name not in stats: stats[name] = {"cash": 0, "terminal": 0, "online": 0, "total": 0}
+        
         stats[name]["total"] += 1
+        
         if o['type'] == 'cash':
             stats[name]["cash"] += o['amount']
             total_cash += o['amount']
+        elif o['type'] == 'terminal':
+            stats[name]["terminal"] += o['amount']
+            total_terminal += o['amount']
         else:
             stats[name]["online"] += 1
 
-    time_now = datetime.now().strftime("%H:%M")
+    time_now = datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%H:%M")
     report = f"📊 **ЗВІТ (на {time_now})**\n➖➖➖➖➖➖➖➖➖➖\n\n"
+    
     for name, d in stats.items():
-        report += f"👤 **{name}**: {d['total']} зам. | {d['cash']:.2f} zł\n"
-    report += f"➖➖➖➖➖➖➖➖➖➖\n💰 **ВСЯ КАСА:** {total_cash:.2f} zł"
+        report += f"👤 **{name}**: {d['total']} зам. | Готівка: {d['cash']:.2f} zł | Терм: {d['terminal']:.2f} zł\n"
+        
+    report += f"➖➖➖➖➖➖➖➖➖➖\n💰 **КАСА (Готівка на руках):** {total_cash:.2f} zł\n💳 **ТЕРМІНАЛ (Безготівково):** {total_terminal:.2f} zł"
     
     await bot.send_message(COURIER_CHAT_ID, report, parse_mode="Markdown")
     if message.chat.id != COURIER_CHAT_ID:
@@ -124,7 +133,7 @@ async def web_app_data_handler(message: types.Message):
 
         if pay_type == 'cash':
             amount = float(data['sum'])
-            money_str = f"💵 **Готівка:** {amount:.2f} zł"
+            money_str = f"💵 **До оплати (Готівка/Терм):** {amount:.2f} zł"
         else:
             amount = 0
             money_str = f"💳 **Оплата:** ОНЛАЙН (Сплачено)"
@@ -144,7 +153,6 @@ async def web_app_data_handler(message: types.Message):
 
         encoded_addr = urllib.parse.quote(address)
         maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
-        callback_data = f"close_{pay_type}_{amount}"
 
         # --- КНОПКА ДЗВІНКА ---
         phone_clean = phone.strip()
@@ -155,12 +163,25 @@ async def web_app_data_handler(message: types.Message):
         else:
             call_button_text = "📞 Подзвонити"
 
-        kb_courier = InlineKeyboardMarkup(inline_keyboard=[
+        # --- ГЕНЕРАЦІЯ КНОПОК ---
+        keyboard_list = [
             [InlineKeyboardButton(text="🗺 Маршрут", url=maps_url)],
-            [InlineKeyboardButton(text=call_button_text, url=call_url)],
-            [InlineKeyboardButton(text="✅ Закрити замовлення", callback_data=callback_data)]
-        ])
+            [InlineKeyboardButton(text=call_button_text, url=call_url)]
+        ]
 
+        if pay_type == 'cash':
+            keyboard_list.append([
+                InlineKeyboardButton(text="💵 Готівка", callback_data=f"close_cash_{amount}"),
+                InlineKeyboardButton(text="🏧 Tермінал", callback_data=f"close_terminal_{amount}")
+            ])
+        else:
+            keyboard_list.append([
+                InlineKeyboardButton(text="✅ Закрити (Онлайн)", callback_data=f"close_online_0")
+            ])
+
+        kb_courier = InlineKeyboardMarkup(inline_keyboard=keyboard_list)
+
+        # Відправка
         photo_sent = False
         if client_lat and client_lon:
             map_file = generate_route_image(float(client_lat), float(client_lon))
@@ -190,23 +211,31 @@ async def web_app_data_handler(message: types.Message):
 async def close_order(callback: types.CallbackQuery):
     try:
         parts = callback.data.split("_")
-        p_type = parts[1]
+        p_type = parts[1] # 'cash', 'terminal' або 'online'
         amount = float(parts[2])
         courier = callback.from_user.first_name
 
-        time_now = datetime.now().strftime("%H:%M")
+        time_now = datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%H:%M")
         
+        # Формуємо статус залежно від типу оплати
+        if p_type == 'terminal':
+            status_text = f"🔴 Закрито ({time_now}, {courier} - 🏧 ТЕРМІНАЛ)"
+        elif p_type == 'cash':
+            status_text = f"🔴 Закрито ({time_now}, {courier} - 💵 ГОТІВКА)"
+        else:
+            status_text = f"🔴 Закрито ({time_now}, {courier} - ✅ ОНЛАЙН)"
+
         if callback.message.photo:
             original_text = callback.message.caption
-            new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
+            new_text = original_text.replace("🟢 Активний", status_text)
             await callback.message.edit_caption(caption=new_text, reply_markup=None)
         else:
             original_text = callback.message.text
-            new_text = original_text.replace("🟢 Активний", f"🔴 Закрито ({time_now}, {courier})")
+            new_text = original_text.replace("🟢 Активний", status_text)
             await callback.message.edit_text(new_text, reply_markup=None)
 
         orders_db.append({"courier": courier, "type": p_type, "amount": amount})
-        await callback.answer(f"Прийнято! {amount} zł.")
+        await callback.answer(f"Прийнято! Тип оплати: {p_type}.")
     except Exception as e:
         print(f"Помилка закриття: {e}")
 
@@ -218,7 +247,7 @@ scheduler.add_job(daily_reset, "cron", hour=0, minute=0)
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    print("🤖 Бот готовий! (Карта з лінією)")
+    print("🤖 Бот готовий! (Карта з лінією + Оновлені кнопки)")
     scheduler.start()
     await dp.start_polling(bot)
 

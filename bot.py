@@ -219,9 +219,9 @@ async def close_order(callback: types.CallbackQuery):
         
         # Формуємо статус залежно від типу оплати
         if p_type == 'terminal':
-            status_text = f"🔴 Закрито ({time_now}, {courier} - 🏧 ТЕРМІНАЛ)"
+            status_text = f"🔴 Закрито ({time_now}, {courier} - 🏧 )"
         elif p_type == 'cash':
-            status_text = f"🔴 Закрито ({time_now}, {courier} - 💵 ГОТІВКА)"
+            status_text = f"🔴 Закрито ({time_now}, {courier} - 💵 )"
         else:
             status_text = f"🔴 Закрито ({time_now}, {courier} - ✅ ОНЛАЙН)"
 

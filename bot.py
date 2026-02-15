@@ -20,8 +20,8 @@ COURIER_CHAT_ID = -1003843457222
 WEB_APP_URL = "https://myshchyshyn9898-bit.github.io/delivery-bot/" 
 
 # Координати Hero Sushi (Zamenhofa)
-SUSHI_LAT = 50.0415
-SUSHI_LON = 22.0140
+SUSHI_LAT = 50.0369285
+SUSHI_LON = 22.0068997
 
 logging.basicConfig(level=logging.INFO)
 
@@ -133,7 +133,7 @@ async def web_app_data_handler(message: types.Message):
 
         if pay_type == 'cash':
             amount = float(data['sum'])
-            money_str = f"💵 **До оплати (Готівка/Терм):** {amount:.2f} zł"
+            money_str = f"💵 **Готівка/Терм:** {amount:.2f} zł"
         else:
             amount = 0
             money_str = f"💳 **Оплата:** ОНЛАЙН (Сплачено)"
